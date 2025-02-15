@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yuzni Aniqlash - Vue.js & Tailwind</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Vue.js -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.min.js"></script>
+
+</head>
+<body class="h-screen w-screen flex flex-col overflow-hidden">
+
+    <!-- Navbar -->
+    <nav class="w-full bg-gray-900 text-white py-4 px-6 flex justify-between items-center fixed top-0 left-0 h-16 shadow-lg z-50">
+        <h1 class="text-xl font-bold">Yuzni Aniqlash</h1>
+        <div class="flex items-center space-x-4 flex-wrap">
+            <!-- Kamera tanlash faqat `face_detection_page` sahifasida ko‘rinadi -->
+            <select v-if="isFaceDetectionPage" v-model="selectedCamera" @change="updateCamera"
+                    class="px-4 py-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600
+                           hover:from-purple-600 hover:via-indigo-600 hover:to-blue-600
+                           text-white font-semibold rounded-lg shadow-lg transition duration-300 ease-in-out
+                           transform hover:scale-105 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                <option v-for="camera in cameras" :key="camera" :value="camera">
+                    Kamera [[ camera ]]
+                </option>
+            </select>
+
+
+            <button @click="toggleStream"
+                    class="px-6 py-2 bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500
+                           hover:from-red-500 hover:via-orange-500 hover:to-yellow-400
+                           text-white font-semibold rounded-lg shadow-lg transition duration-300 ease-in-out
+                           transform hover:scale-105 hover:shadow-xl">
+                [[ isStreaming ? 'To‘xtatish' : 'Ishga tushirish' ]]
+            </button>
+
+
+            <!-- Foydalanuvchilar sahifasiga o'tish tugmasi -->
+            <a href="{% url 'get_user_page' %}"
+               class="px-6 py-2 bg-gradient-to-r from-purple-500 via-pink-500 to-red-500
+                      hover:from-red-500 hover:via-pink-500 hover:to-purple-500
+                      text-white font-semibold rounded-lg shadow-lg transition duration-300 ease-in-out
+                      transform hover:scale-105 hover:shadow-xl">
+                Foydalanuvchilar
+            </a>
+        </div>
+    </nav>
+
+
+    <!-- Kamera oqimi -->
+    <div class="flex-1 flex items-center justify-center w-full h-full pt-16">
+        <div class="w-full max-w-5xl aspect-video relative">
+            <img :src="isStreaming ? videoStreamUrl : '/static/img/camera.png'"
+                 class="w-full h-full object-cover fade-in rounded-lg shadow-lg"
+                 alt="Kamera yoqilmagan">
+        </div>
+    </div>
+
+    <script>
+        const app = Vue.createApp({
+            delimiters: ['[[', ']]'], // Jinja va Vue to‘qnash kelmasligi uchun
+            data() {
+                return {
+                    isStreaming: true,
+                    cameras: [],
+                    selectedCamera: null,
+                    videoStreamUrl: "",
+                    isFaceDetectionPage: window.location.pathname.includes("/stream/"), // URL tekshirish
+                };
+            },
+            methods: {
+                // Kameralar ro'yxatini olish
+                fetchCameras() {
+                    fetch("/camera_list/")
+                        .then(response => response.json())
+                        .then(data => {
+                            this.cameras = data.cameras;
+                            if (this.cameras.length > 0) {
+                                this.selectedCamera = this.cameras[0]; // Birinchi kamerani tanlash
+                                this.updateCamera();
+                            }
+                        });
+                },
+
+                // Kamerani yangilash
+                updateCamera() {
+                    if (this.selectedCamera !== null) {
+                        this.videoStreamUrl = `/video_feed/${this.selectedCamera}/`;
+                    }
+                },
+
+                // Oqimni to'xtatish yoki ishga tushirish
+                toggleStream() {
+                    this.isStreaming = !this.isStreaming;
+                }
+            },
+            mounted() {
+                this.fetchCameras();
+            }
+        });
+
+        app.mount("body");
+    </script>
+
+</body>
+</html>

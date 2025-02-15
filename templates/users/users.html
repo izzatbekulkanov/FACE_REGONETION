@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Foydalanuvchilar Ro'yxati</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.min.js"></script>
+</head>
+<body class="h-screen w-screen flex flex-col bg-gray-100">
+
+<meta name="csrf-token" content="{{ csrf_token }}">
+
+    <!-- Navbar -->
+    <nav class="w-full bg-gray-900 text-white py-4 px-6 flex justify-between items-center shadow-lg">
+        <h1 class="text-xl font-bold">Foydalanuvchilar</h1>
+        <div class="flex items-center space-x-4">
+            <button @click="fetchEmployees"
+                    class="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-lg shadow-md transition">
+                Foydalanuvchilarni Yuklash
+            </button>
+            <button @click="fetchFaceLogs"
+                    class="px-6 py-2 bg-purple-500 hover:bg-purple-600 text-white font-semibold rounded-lg shadow-md transition">
+                FaceLog yaratish
+            </button>
+            <button @click="deleteAllUsers"
+                    class="px-6 py-2 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-lg shadow-md transition">
+                🗑 Barcha foydalanuvchilarni o‘chirish
+            </button>
+            <a href="{% url 'face_detection_page' %}"
+               class="px-6 py-2 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-lg shadow-md transition">
+                Kamera
+            </a>
+        </div>
+    </nav>
+
+    <!-- Yuklash jarayoni -->
+    <div v-if="loading" class="container mx-auto mt-4 p-4 bg-white shadow-lg rounded-lg">
+        <p class="text-lg text-gray-700">Yuklash jarayoni: [[ progress ]]%</p>
+        <div class="w-full bg-gray-200 rounded-full h-4 mt-2">
+            <div :style="{ width: progress + '%' }"
+                 class="h-full bg-blue-500 rounded-full"></div>
+        </div>
+    </div>
+
+    <!-- Container -->
+    <div class="container mx-auto mt-10 p-6 bg-white shadow-xl rounded-lg dark:bg-gray-800 dark:text-white">
+
+        <!-- Qidiruv paneli -->
+        <form method="GET" action="{% url 'get_user_page' %}" class="mb-6 flex space-x-2">
+            <input type="text" name="q" value="{{ search_query }}"
+                   placeholder="🔍 Foydalanuvchini qidiring..."
+                   class="px-4 py-3 border rounded-lg w-full focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            <button type="submit"
+                    class="px-6 py-3 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-lg shadow-md transition">
+                Qidirish
+            </button>
+        </form>
+
+        <!-- Jadval -->
+        <div class="overflow-x-auto rounded-lg shadow-lg">
+            <table class="w-full border-collapse border border-gray-300 dark:border-gray-700">
+                <thead>
+                    <tr class="bg-gray-700 text-white text-left text-sm md:text-base">
+                        <th class="border px-4 py-3">#</th>
+                        <th class="border px-4 py-3">Rasm</th>
+                        <th class="border px-4 py-3">Ism</th>
+                        <th class="border px-4 py-3">Email</th>
+                        <th class="border px-4 py-3 hidden sm:table-cell">Telefon</th>
+                        <th class="border px-4 py-3 hidden md:table-cell">Lavozim</th>
+                        <th class="border px-4 py-3 hidden lg:table-cell">Qo‘shilgan sana</th>
+                        <th class="border px-4 py-3">FaceLog</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                        <tr class="hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                            <td class="border px-4 py-3 text-sm">{{ forloop.counter }}</td>
+
+                            <!-- Foydalanuvchi rasmi -->
+                            <td class="border px-4 py-3">
+                                {% if user.face_image %}
+                                    <img src="{{ user.face_image.url }}" alt="User Image"
+                                         class="w-12 h-12 rounded-full object-cover border-2 border-gray-300 dark:border-gray-500">
+                                {% else %}
+                                    <img src="{% static 'img/default-avatar.png' %}" alt="Default Avatar"
+                                         class="w-12 h-12 rounded-full object-cover border-2 border-gray-300 dark:border-gray-500">
+                                {% endif %}
+                            </td>
+
+                            <td class="border px-4 py-3 font-semibold">{{ user.full_name }}</td>
+                            <td class="border px-4 py-3">{{ user.email }}</td>
+                            <td class="border px-4 py-3 hidden sm:table-cell">{{ user.phone_number }}</td>
+                            <td class="border px-4 py-3 hidden md:table-cell">{{ user.position|default:"-" }}</td>
+                            <td class="border px-4 py-3 hidden lg:table-cell">{{ user.date_joined|date:"Y-m-d" }}</td>
+
+                            <!-- FaceLog mavjudligini ko‘rsatish -->
+                            <td class="border px-4 py-3 text-center">
+                                {% if user.face_logs.exists %}
+                                    <span class="text-green-500 text-xl">✅</span>
+                                {% else %}
+                                    <span class="text-red-500 text-xl">❌</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="8" class="border px-4 py-3 text-center text-gray-500 dark:text-gray-400">
+                                Hech qanday foydalanuvchi topilmadi.
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="mt-6 flex justify-center space-x-2">
+            {% if users.has_previous %}
+                <a href="?q={{ search_query }}&page=1"
+                   class="px-3 py-2 bg-gray-300 dark:bg-gray-700 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-600">Birinchi</a>
+                <a href="?q={{ search_query }}&page={{ users.previous_page_number }}"
+                   class="px-3 py-2 bg-gray-300 dark:bg-gray-700 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-600">Oldingi</a>
+            {% endif %}
+
+            <span class="px-4 py-2 bg-blue-500 text-white rounded-lg">
+                Sahifa {{ users.number }} / {{ users.paginator.num_pages }}
+            </span>
+
+            {% if users.has_next %}
+                <a href="?q={{ search_query }}&page={{ users.next_page_number }}"
+                   class="px-3 py-2 bg-gray-300 dark:bg-gray-700 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-600">Keyingi</a>
+                <a href="?q={{ search_query }}&page={{ users.paginator.num_pages }}"
+                   class="px-3 py-2 bg-gray-300 dark:bg-gray-700 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-600">Oxirgi</a>
+            {% endif %}
+        </div>
+    </div>
+
+
+   <script>
+    const app = Vue.createApp({
+        delimiters: ['[[', ']]'],
+        data() {
+            return {
+                loading: false,
+                progress: 0
+            };
+        },
+        methods: {
+            fetchEmployees() {
+                this.loading = true;
+                this.progress = 0;
+
+                fetch("{% url 'fetch_employees' %}")
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            this.monitorProgress("{% url 'fetch_employees_progress' %}");
+                        } else {
+                            console.error("Xatolik:", data.message);
+                            this.loading = false;
+                        }
+                    })
+                    .catch(error => {
+                        console.error("API xatolik:", error);
+                        this.loading = false;
+                    });
+            },
+
+            fetchFaceLogs() {
+                this.loading = true;
+                this.progress = 0;
+
+                fetch("{% url 'create_all_face_encodings' %}")
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            this.monitorProgress("{% url 'face_encoding_progress' %}");
+                        } else {
+                            console.error("Xatolik:", data.message);
+                            this.loading = false;
+                        }
+                    })
+                    .catch(error => {
+                        console.error("API xatolik:", error);
+                        this.loading = false;
+                    });
+            },
+
+            monitorProgress(url) {
+                let interval = setInterval(() => {
+                    fetch(url)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (!data || typeof data.progress === "undefined") {
+                                console.warn("⚠️ Progress ma’lumoti kelmadi.");
+                                return;
+                            }
+
+                            // 📊 **Progressni yangilash**
+                            let progressValue = parseFloat(data.progress);
+                            if (!isNaN(progressValue)) {
+                                this.progress = progressValue;
+                                console.log(`📊 [INFO] Yangi progress: ${this.progress}%`);
+                            }
+
+                            // ✅ **Agar progress 100% ga yetgan bo‘lsa, intervalni to‘xtatish**
+                            if (this.progress >= 100) {
+                                clearInterval(interval);
+                                console.log("✅ [DONE] Encoding yaratish jarayoni tugadi!");
+
+                                setTimeout(() => {
+                                    this.loading = false;
+                                    location.reload();
+                                }, 1000); // 1 soniya kutib sahifani yangilash
+                            }
+
+                            // ⏳ **Agar progress 90%+ bo‘lsa, intervalni sekinlashtirish**
+                            if (this.progress >= 90) {
+                                clearInterval(interval);
+                                interval = setInterval(() => this.monitorProgress(url), 3000); // Har 3 sekundda tekshirish
+                            }
+                        })
+                        .catch(error => {
+                            console.error("❌ [ERROR] Progress tekshirishda xatolik:", error);
+                            clearInterval(interval);
+                            this.loading = false;
+                        });
+                }, 1000);  // Har 1 sekundda progressni tekshirib borish
+            },
+
+
+            async deleteAllUsers() {
+    if (!confirm("🛑 Superuserdan tashqari barcha foydalanuvchilar o‘chiriladi. Davom etasizmi?")) {
+        return;
+    }
+
+    this.loading = true;
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+    try {
+        let response = await fetch("{% url 'delete_all_users' %}", {
+            method: "DELETE",
+            headers: {
+                "X-CSRFToken": csrfToken,
+                "Content-Type": "application/json"
+            }
+        });
+
+        let data = await response.json();
+        alert(data.message);
+        if (data.success) {
+            location.reload();
+        }
+    } catch (error) {
+        console.error("❌ O‘chirishda xatolik:", error);
+        alert("❌ Xatolik yuz berdi!");
+    }
+    this.loading = false;
+}
+
+        }
+    });
+
+    app.mount("body");
+</script>
+
+</body>
+</html>
