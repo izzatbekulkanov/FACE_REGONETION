@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+{% block title %}Hodimlar ro'yxati{% endblock %}
+
+{% block content %}
+    <div class="bg-white p-6 rounded-xl shadow-md relative">
+
+        <!-- Qidirish va amallar -->
+        <div class="flex flex-col md:flex-row md:justify-between md:items-center mb-4 gap-4">
+            <form method="get" class="flex gap-2 w-full md:max-w-md">
+                <input type="text" name="q" value="{{ query }}" placeholder="🔍 Ism yoki email bo'yicha qidirish"
+                       class="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+                <button type="submit"
+                        class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 text-sm font-medium">
+                    Qidirish
+                </button>
+            </form>
+
+            <div class="flex gap-2 items-center">
+                <button onclick="startUpload()"
+                        class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-sm font-medium">
+                    📥 Hodimlarni yuklash
+                </button>
+                <button onclick="startEncodingCreation()"
+                        class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 text-sm font-medium">
+                    🧠 Encoding yaratish
+                </button>
+            </div>
+        </div>
+
+        <!-- Hodimlar soni -->
+        <div class="text-sm text-gray-600 mb-4">
+            🔢 Jami hodimlar soni: <strong>{{ total_count }}</strong> ta
+        </div>
+
+        <!-- Jadval -->
+        <div class="overflow-x-auto">
+            <table class="w-full table-auto border rounded text-sm">
+                <thead class="bg-gray-100 text-left">
+                <tr>
+                    <th class="p-2 border">#</th>
+                    <th class="p-2 border">Ism</th>
+                    <th class="p-2 border">Rasm</th>
+                    <th class="p-2 border">Bo'lim</th>
+                    <th class="p-2 border">Lavozim</th>
+                    <th class="p-2 border">Ro'yxatdan o'tgan</th>
+                    <th class="p-2 border">Encoding</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for user in staff_list %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="p-2 border">{{ forloop.counter }}</td>
+                        <td class="p-2 border">{{ user.full_name }}</td>
+                        <td class="p-2 border">
+                            {% if user.face_image %}
+                                <img src="{{ user.face_image.url }}"
+                                     alt="{{ user.full_name }}"
+                                     class="w-10 h-10 object-cover rounded cursor-pointer hover:scale-110 transition"
+                                     onclick="showImageModal(
+                                             '{{ user.face_image.url }}',
+                                             '{{ user.full_name|escapejs }}',
+                                             '{{ user.email|default:"-" }}',
+                                             '{{ user.department|default:"-"|escapejs }}',
+                                             '{{ user.position|default:"-"|escapejs }}',
+                                             '{{ user.date_joined|date:"Y-m-d" }}'
+                                             )">
+                            {% else %}
+                                <span class="text-gray-400 italic text-sm">Rasm yo‘q</span>
+                            {% endif %}
+                        </td>
+                        <td class="p-2 border">{{ user.department }}</td>
+                        <td class="p-2 border">{{ user.position }}</td>
+                        <td class="p-2 border">{{ user.date_joined|date:"Y-m-d" }}</td>
+                        <td class="p-2 border text-center">
+                            {% if user.face_encoding %}
+                                <span class="text-green-600 font-semibold">✅ Bor</span>
+                            {% else %}
+                                <span class="text-red-500 font-semibold">❌ Yo‘q</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center p-4 text-gray-500">Hodimlar topilmadi.</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Sahifalash -->
+        <div class="mt-4 flex justify-center">
+            {% if staff_list.has_other_pages %}
+                <nav class="flex gap-1 text-sm">
+                    {% if staff_list.has_previous %}
+                        <a href="?q={{ query }}&page={{ staff_list.previous_page_number }}"
+                           class="px-3 py-1 border rounded hover:bg-gray-200">← Oldingi</a>
+                    {% endif %}
+                    <span class="px-3 py-1 border rounded bg-gray-100 font-medium">
+                Sahifa {{ staff_list.number }} / {{ staff_list.paginator.num_pages }}
+            </span>
+                    {% if staff_list.has_next %}
+                        <a href="?q={{ query }}&page={{ staff_list.next_page_number }}"
+                           class="px-3 py-1 border rounded hover:bg-gray-200">Keyingi →</a>
+                    {% endif %}
+                </nav>
+            {% endif %}
+        </div>
+
+        <!-- Progress overlay -->
+        <div id="uploadProgressContainer"
+             class="fixed inset-0 bg-white/80 backdrop-blur-sm flex flex-col justify-center items-center z-50 hidden">
+            <div class="text-lg font-semibold text-gray-800 mb-3" id="uploadStatus">Yuklanmoqda...</div>
+            <div class="w-64 bg-gray-200 rounded-full h-4">
+                <div id="uploadBar" class="bg-green-500 h-4 rounded-full text-xs text-center text-white"
+                     style="width: 0%">
+                    0%
+                </div>
+            </div>
+        </div>
+
+
+        <!-- Modal: Rasm va ma'lumotlar -->
+        <div id="imageModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50">
+            <div class="bg-white rounded-xl p-6 shadow-lg relative max-w-md w-full text-center">
+                <button onclick="closeImageModal()"
+                        class="absolute top-2 right-3 text-gray-500 hover:text-black text-2xl">
+                    &times;
+                </button>
+                <img id="modalImage" src="" alt="Image" class="w-40 h-40 mx-auto rounded-full object-cover shadow mb-4">
+                <h3 id="modalName" class="text-lg font-semibold mb-1"></h3>
+                <p id="modalEmail" class="text-sm text-gray-500 mb-1"></p>
+                <p id="modalDepartment" class="text-sm mb-1"></p>
+                <p id="modalPosition" class="text-sm mb-1"></p>
+                <p id="modalDate" class="text-sm text-gray-500"></p>
+                <button onclick="closeImageModal()"
+                        class="mt-4 bg-gray-200 hover:bg-gray-300 text-sm px-4 py-2 rounded">
+                    Bekor qilish
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+
+    <!-- Scripts -->
+    <script>
+
+        function startEncodingCreation() {
+            const overlay = document.getElementById("uploadProgressContainer");
+            const bar = document.getElementById("uploadBar");
+            const status = document.getElementById("uploadStatus");
+
+            overlay.classList.remove("hidden");
+            bar.style.width = "0%";
+            bar.innerText = "0%";
+            status.innerText = "Encoding yaratish boshlandi...";
+
+            fetch("{% url 'create_encodings' %}", {
+                method: "POST",
+                headers: {'X-CSRFToken': '{{ csrf_token }}'}
+            });
+
+            let interval = setInterval(() => {
+                fetch("{% url 'encoding_progress' %}")
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.total > 0) {
+                            let percent = Math.floor((data.current / data.total) * 100);
+                            bar.style.width = percent + "%";
+                            bar.innerText = percent + "%";
+                            status.innerText = `${data.current}/${data.total} ta encoding yaratildi`;
+                        }
+                        if (data.total > 0 && data.current >= data.total) {
+                            status.innerText = "✅ Encoding yaratish tugadi!";
+                            clearInterval(interval);
+                            setTimeout(() => location.reload(), 2000);
+                        }
+                    })
+                    .catch(err => {
+                        clearInterval(interval);
+                        status.innerText = "❌ Xatolik yuz berdi";
+                        console.error(err);
+                    });
+            }, 1000);
+        }
+
+
+        function startUpload() {
+            const overlay = document.getElementById("uploadProgressContainer");
+            const bar = document.getElementById("uploadBar");
+            const status = document.getElementById("uploadStatus");
+
+            overlay.classList.remove("hidden");
+            bar.style.width = "0%";
+            bar.innerText = "0%";
+
+            fetch("{% url 'upload_employees' %}", {
+                method: "POST",
+                headers: {'X-CSRFToken': '{{ csrf_token }}'}
+            });
+
+            let interval = setInterval(() => {
+                fetch("{% url 'upload_progress' %}")
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.total > 0) {
+                            let percent = Math.floor((data.current / data.total) * 100);
+                            bar.style.width = percent + "%";
+                            bar.innerText = percent + "%";
+                            status.innerText = `${data.current} ta hodim yuklandi`;
+                        }
+                        if (data.total > 0 && data.current >= data.total) {
+                            status.innerText = "✅ Yuklash tugadi!";
+                            clearInterval(interval);
+                            setTimeout(() => location.reload(), 2000);
+                        }
+                    })
+                    .catch(err => {
+                        clearInterval(interval);
+                        status.innerText = "❌ Xatolik: yuklab bo‘lmadi";
+                        console.error(err);
+                    });
+            }, 1000);
+        }
+
+
+        function showImageModal(url, name, email, department, position, date) {
+            document.getElementById("modalImage").src = url;
+            document.getElementById("modalName").textContent = name;
+            document.getElementById("modalEmail").textContent = email;
+            document.getElementById("modalDepartment").textContent = "📍 " + department;
+            document.getElementById("modalPosition").textContent = "💼 " + position;
+            document.getElementById("modalDate").textContent = "🗓️ Ro'yxatdan o'tgan: " + date;
+            document.getElementById("imageModal").classList.remove("hidden");
+            document.body.classList.add("overflow-hidden");
+        }
+
+        function closeImageModal() {
+            document.getElementById("imageModal").classList.add("hidden");
+            document.body.classList.remove("overflow-hidden");
+        }
+    </script>
+{% endblock %}

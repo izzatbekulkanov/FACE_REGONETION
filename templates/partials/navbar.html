@@ -1,0 +1,22 @@
+<nav class="bg-white shadow-sm sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+        <!-- Logotip -->
+        <h1 class="text-xl font-bold text-blue-600">🧠 FaceTabel AI</h1>
+
+        <!-- Menyular -->
+        <div class="space-x-6">
+            <a href="/"
+               class="{% if request.path == '/' %}text-blue-600 font-semibold{% else %}text-gray-700 hover:text-blue-600{% endif %} transition">
+                🏠 Asosiy
+            </a>
+            <a href="{% url 'staff_list' %}"
+               class="{% if request.resolver_match.url_name == 'staff_list' %}text-blue-600 font-semibold{% else %}text-gray-700 hover:text-blue-600{% endif %} transition">
+                👥 Hodimlar
+            </a>
+            <a href="{% url 'camera_list' %}"
+               class="{% if request.resolver_match.url_name == 'camera_list' %}text-blue-600 font-semibold{% else %}text-gray-700 hover:text-blue-600{% endif %} transition">
+                🎥 Kameralar
+            </a>
+        </div>
+    </div>
+</nav>

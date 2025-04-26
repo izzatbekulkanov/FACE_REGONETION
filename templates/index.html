@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Bugungi Aniqlanganlar{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-4 relative">
+
+    <!-- iOS-style bildirishnoma -->
+    <div id="notification"
+         class="fixed top-5 right-5 z-50 hidden bg-white border border-gray-200 shadow-xl rounded-xl px-4 py-3 text-gray-800 font-semibold text-sm transition-all duration-300">
+        <span id="notification-text"></span>
+    </div>
+
+    <!-- Modal oynasi -->
+    <div id="media-modal" class="hidden fixed inset-0 z-50 bg-black bg-opacity-60 flex items-center justify-center">
+        <div class="bg-white rounded-lg p-4 w-full max-w-xl relative">
+            <button class="absolute top-2 right-3 text-gray-500 text-lg font-bold" onclick="closeModal()">✖</button>
+            <div id="modal-content"></div>
+        </div>
+    </div>
+
+    <!-- Sarlavha -->
+    <div class="bg-white shadow rounded-lg p-4 flex justify-between items-center">
+        <h2 class="text-lg font-semibold text-gray-800">🕵️ Bugun kameradan o‘tganlar</h2>
+        <span class="text-sm text-gray-600">Jami: <strong id="logs-count">{{ logs_count }}</strong></span>
+    </div>
+
+    <!-- Loglar ro‘yxati -->
+    <div class="bg-white shadow rounded-lg p-4 overflow-x-auto">
+        {% if logs %}
+        <form id="delete-logs-form">
+            {% csrf_token %}
+            <table class="min-w-full text-sm">
+                <thead>
+                <tr class="text-left border-b">
+                    <th>#</th>
+                    <th>F.I.SH</th>
+                    <th>Lavozim</th>
+                    <th>Bo‘lim</th>
+                    <th>Institut</th>
+                    <th>Vaqti</th>
+                    <th>Rasm</th>
+                    <th>Video</th>
+                </tr>
+                </thead>
+                <tbody id="logs-body">
+                {% for log in logs %}
+                    <tr class="border-b">
+                        <td>{{ forloop.counter }}</td>
+                        <td class="font-medium text-gray-800">{{ log.user.full_name }}</td>
+                        <td>{{ log.user.position }}</td>
+                        <td>{{ log.user.department }}</td>
+                        <td>{{ log.user.institute }}</td>
+                        <td class="text-gray-500">{{ log.detected_at|date:"Y-m-d H:i:s" }}</td>
+                        <td>
+                            {% with snapshot=log.user.face_snapshots.first %}
+                                {% if snapshot.image %}
+                                    <img src="/media/{{ snapshot.image }}"
+                                         class="w-12 h-12 rounded-full border cursor-pointer object-cover"
+                                         onclick="openModal('img', '/media/{{ snapshot.image }}')">
+                                {% endif %}
+                            {% endwith %}
+                        </td>
+                        <td>
+                            {% with snapshot=log.user.face_snapshots.first %}
+                                {% if snapshot.video %}
+                                    <button class="text-blue-600 underline text-xs"
+                                            onclick="openModal('video', '{{ snapshot.video.url }}')">🎥 Ko‘rish</button>
+                                {% endif %}
+                            {% endwith %}
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </form>
+        {% else %}
+        <div class="text-center text-gray-500 py-10">Bugun hech kim aniqlanmadi.</div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- JavaScript -->
+<script>
+    function showIOSNotification(text) {
+        const box = document.getElementById("notification");
+        const span = document.getElementById("notification-text");
+        span.innerText = text;
+        box.classList.remove("hidden");
+        box.classList.add("opacity-100");
+        setTimeout(() => {
+            box.classList.add("hidden");
+            box.classList.remove("opacity-100");
+        }, 4000);
+    }
+
+    function openModal(type, url) {
+        const modal = document.getElementById("media-modal");
+        const content = document.getElementById("modal-content");
+
+        if (type === 'img') {
+            content.innerHTML = `<img src="${url}" class="w-full rounded-lg" alt="Snapshot">`;
+        } else if (type === 'video') {
+            content.innerHTML = `
+                <video class="w-full rounded-lg" controls autoplay muted playsinline>
+                    <source src="${url}" type="video/mp4">
+                    Brauzeringiz bu videoni qo‘llab-quvvatlamaydi.
+                </video>`;
+        }
+
+        modal.classList.remove("hidden");
+    }
+
+    function closeModal() {
+        document.getElementById("media-modal").classList.add("hidden");
+        document.getElementById("modal-content").innerHTML = "";
+    }
+
+    function prependLogToTable(data) {
+        const tableBody = document.getElementById('logs-body');
+        const newRow = document.createElement('tr');
+        newRow.classList.add('border-b');
+        newRow.innerHTML = `
+            <td>🆕</td>
+            <td class="font-medium text-gray-800">${data.full_name}</td>
+            <td>${data.position}</td>
+            <td>${data.department}</td>
+            <td>${data.institute}</td>
+            <td class="text-gray-500">${data.detected_at}</td>
+            <td>
+                ${data.image ? `<img src="${data.image}" class="w-12 h-12 rounded-full border cursor-pointer object-cover" onclick="openModal('img', '${data.image}')">` : ''}
+            </td>
+            <td>
+                ${data.video ? `<button class="text-blue-600 underline text-xs" onclick="openModal('video', '${data.video}')">🎥 Ko‘rish</button>` : ''}
+            </td>
+        `;
+        tableBody.prepend(newRow);
+        const countElem = document.getElementById("logs-count");
+        countElem.textContent = parseInt(countElem.textContent) + 1;
+    }
+
+    let lastShownId = {{ logs.0.id|default:0 }};
+    setInterval(() => {
+        fetch("{% url 'latest_logs' %}")
+            .then(res => res.status === 204 ? null : res.json())
+            .then(data => {
+                if (data && data.id && data.id > lastShownId) {
+                    lastShownId = data.id;
+                    showIOSNotification(`${data.full_name} kameradan o‘tdi`);
+                    prependLogToTable(data);
+                }
+            })
+            .catch(err => console.warn("⚠️ AJAX xatolik:", err));
+    }, 2000);
+
+
+</script>
+{% endblock %}

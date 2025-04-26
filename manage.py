@@ -3,12 +3,10 @@
 import os
 import sys
 
-# TensorFlow ogohlantirishlarini o‘chirish
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 def main():
     """Run administrative tasks."""
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'institute_face_system.settings')
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'face_recognition_project.settings')
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:

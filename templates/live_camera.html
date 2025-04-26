@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Jonli Kamera{% endblock %}
+
+{% block content %}
+<div class="text-center mt-6">
+    <h2 class="text-xl font-semibold mb-4">📡 Joriy Ishlayotgan Kamera</h2>
+
+    <!-- Kamera oqim konteyneri -->
+    <div class="inline-block border rounded shadow relative" style="width: 640px; height: 480px;">
+        <!-- Overlay canvas -->
+        <canvas id="camera-canvas" width="640" height="480" class="absolute top-0 left-0 z-10"></canvas>
+        <!-- Real-time video stream -->
+        <img id="camera-stream" src="{% url 'live_video_feed' %}" class="w-full h-full object-cover" style="z-index: 0;" alt="Camera Stream">
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const canvas = document.getElementById("camera-canvas");
+    const ctx = canvas.getContext("2d");
+
+    let currentName = "";
+    let lastDetected = 0;
+
+    function drawNameOverlay(name) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.font = "bold 20px Arial";
+        ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+        ctx.fillRect(10, 10, ctx.measureText(name).width + 20, 30);
+        ctx.fillStyle = "#00ff00";
+        ctx.fillText(name, 20, 30);
+    }
+
+    setInterval(() => {
+        fetch("{% url 'live_camera_name' %}")
+            .then(res => res.json())
+            .then(data => {
+                if (data.name && data.name !== currentName) {
+                    currentName = data.name;
+                    lastDetected = Date.now();
+                    drawNameOverlay(currentName);
+                } else if (Date.now() - lastDetected > 3000) {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    currentName = "";
+                }
+            });
+    }, 1000);
+});
+</script>
+{% endblock %}

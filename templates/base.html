@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}FaceTabel - AI Dash{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css"
+          integrity="sha512-bn8pEXs+Qv5PHMZkTxGH6MGj1uwA3k61qxv2CM+kMPnE1Yq+dYA9Etb5OIE0zDRYubqFiCmEVPzMZe9bS0ZCHg=="
+          crossorigin="anonymous" referrerpolicy="no-referrer"/>
+
+    <style>
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .animate-fadeIn {
+            animation: fadeIn 0.3s ease-out both;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-100 to-white min-h-screen text-gray-800">
+{% include 'partials/navbar.html' %}
+
+<main class="container mx-auto px-4 py-6">
+    {% block content %}{% endblock %}
+</main>
+
+{% include 'partials/footer.html' %}
+</body>
+</html>
