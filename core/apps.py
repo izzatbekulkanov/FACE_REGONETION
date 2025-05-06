@@ -7,16 +7,23 @@ class CoreConfig(AppConfig):
     name = 'core'
 
     def ready(self):
-        from core.live import get_camera_instance
+        """
+        Django start bo‘lganda tanlangan kamerani tekshiradi.
+        Agar mavjud bo‘lsa — konsolga chiqadi.
+        """
+        from core.recognition import get_selected_camera  # 🔥 Endi recognition dan chaqiriladi
 
-        def start_camera_thread():
+        def start_camera_check():
             try:
-                cam = get_camera_instance()
-                if cam:
-                    print(f"🚀 Tanlangan kamera ishga tushdi: {cam.camera.name}")
+                camera = get_selected_camera()
+                if camera:
+                    print(f"🚀 Tanlangan kamera topildi: {camera.name} ({camera.type.upper()})")
+                else:
+                    print("⚠️ Faol va tanlangan kamera mavjud emas.")
             except Exception as e:
-                print(f"❌ Kamera fon rejimda ishga tushmadi: {e}")
+                print(f"❌ Kamera tekshiruvda xatolik: {e}")
 
-        if not hasattr(self, 'camera_thread_started'):
-            self.camera_thread_started = True
-            threading.Thread(target=start_camera_thread, daemon=True).start()
+        # Bir martalik ishga tushirish
+        if not hasattr(self, '_camera_checked'):
+            self._camera_checked = True
+            threading.Thread(target=start_camera_check, daemon=True).start()

@@ -5,7 +5,6 @@ from django.core.paginator import Paginator
 from django.http import JsonResponse
 from django.shortcuts import render
 from face_recognition_project import settings
-from .generator import gen
 from .models import CustomUser, FaceRecognitionLog, FaceEncoding, FaceSnapshot
 import time
 from django.views.decorators.csrf import csrf_exempt
@@ -20,11 +19,6 @@ from insightface.app import FaceAnalysis
 from django.views.generic import ListView
 from django.utils.timezone import now
 
-
-def get_snapshot_video_url(self):
-    if self.video:
-        return self.video.url if self.video.url.startswith('/') else settings.MEDIA_URL + self.video.name
-    return ''
 
 class FaceRecognitionLogListView(ListView):
     model = FaceRecognitionLog
@@ -161,6 +155,14 @@ def create_encodings(request):
                 try:
                     full_name = user.full_name or "[ISMSIZ]"
                     print(f"🔄 {encoding_progress_data['current'] + 1}/{total_users} | {full_name}")
+
+                    # 🔥 Avval tekshiramiz: FaceEncoding mavjudmi
+                    if hasattr(user, 'face_encoding'):
+                        msg = f"⏭️ Skip: {full_name} (encoding mavjud)"
+                        print(msg)
+                        logger.info(msg)
+                        encoding_progress_data["current"] += 1
+                        continue
 
                     if not user.face_image or not user.face_image.path or not os.path.exists(user.face_image.path):
                         msg = f"⚠️ Rasm yo‘q: {full_name}"

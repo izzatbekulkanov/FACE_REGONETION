@@ -14,6 +14,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'core',
     'background_task',
+    'channels'
 ]
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

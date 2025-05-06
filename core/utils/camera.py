@@ -4,23 +4,31 @@ import json
 import re
 import subprocess
 import ipaddress
-import urllib.parse
 from concurrent.futures import ThreadPoolExecutor, as_completed
-
-from asgiref.sync import sync_to_async
-from django.http import JsonResponse, HttpResponse, StreamingHttpResponse
+from django.http import JsonResponse
 from django.shortcuts import render, get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST, require_GET
 from ..models import Camera
-from starlette.responses import StreamingResponse
+from channels.generic.websocket import AsyncWebsocketConsumer
+
+import urllib.parse
+
 
 @require_GET
-def get_camera_info(request, ip):
-    print(f"🛜 [get_camera_info] So'rov olindi | IP: {ip}")
+def get_camera_info(request, ip_or_id):
+    print(f"🛜 [get_camera_info] So'rov olindi | Parametr: {ip_or_id}")
     try:
-        cam = get_object_or_404(Camera, source=ip)
+        # Parametr raqammi (id) yoki IP manzilmi aniqlaymiz
+        is_id = ip_or_id.isdigit()
+
+        if is_id:
+            cam = get_object_or_404(Camera, id=int(ip_or_id))
+        else:
+            cam = get_object_or_404(Camera, source=ip_or_id)
+
         print(f"✅ [get_camera_info] Kamera topildi: {cam.name}")
+
         return JsonResponse({
             'id': cam.id,
             'name': cam.name,
@@ -31,6 +39,7 @@ def get_camera_info(request, ip):
             'username': cam.username,
             'password': cam.password
         })
+
     except Exception as e:
         print(f"❌ [get_camera_info] Kamera topilmadi yoki xatolik: {e}")
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
@@ -54,22 +63,26 @@ def save_camera(request):
             if not re.match(r'^\d{1,3}(\.\d{1,3}){3}$', source):
                 return JsonResponse({'status': 'error', 'message': 'IP manzil noto‘g‘ri!'}, status=400)
 
-        if Camera.objects.filter(type=cam_type, source=source).exists():
-            return JsonResponse({'status': 'error', 'message': 'Bu kamera allaqachon saqlangan!'}, status=400)
-
-        camera = Camera(
-            name=name,
+        # Kamera mavjudligini tekshirib, yangilash yoki yaratish
+        camera, created = Camera.objects.update_or_create(
             type=cam_type,
             source=source,
-            username=username,
-            password=password
+            defaults={
+                'name': name,
+                'username': username,
+                'password': password
+            }
         )
-        camera.save()
 
-        return JsonResponse({'status': 'ok', 'message': 'Kamera muvaffaqiyatli saqlandi'})
+        if created:
+            message = "✅ Kamera muvaffaqiyatli saqlandi."
+        else:
+            message = "✅ Kamera ma'lumotlari yangilandi."
+
+        return JsonResponse({'status': 'ok', 'message': message})
 
     except Exception as e:
-        return JsonResponse({'status': 'error', 'message': f'Xatolik: {str(e)}'}, status=500)
+        return JsonResponse({'status': 'error', 'message': f"Xatolik: {str(e)}"}, status=500)
 
 
 @csrf_exempt
@@ -118,142 +131,114 @@ def toggle_camera_selected(request, pk):
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
 
-def generate_ffmpeg_stream(ip, username, password, stream_type="main"):
-    print("\n================ 📡 [generate_ffmpeg_stream] Boshlanishi ================\n")
-    try:
-        # 1. Stream turi aniqlanadi (main yoki sub)
-        channel_id = "101" if stream_type == "main" else "102"
-        print(f"🔎 Stream turi: {stream_type} (channel_id={channel_id})")
+class CameraStreamConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        try:
+            self.ip = self.scope['url_route']['kwargs']['ip']
+            query_params = urllib.parse.parse_qs(self.scope['query_string'].decode())
+            self.username = query_params.get('username', ['admin'])[0]
+            self.password = query_params.get('password', ['Qwerty@123456.'])[0]
 
-        # 2. Username va password URL uchun tayyorlanadi
-        username_encoded = urllib.parse.quote(username)
-        password_encoded = urllib.parse.quote(password)
-        print(f"🔐 Username (encoded): {username_encoded}")
-        print(f"🔐 Password (encoded): {password_encoded}")
+            await self.accept()
+            print(f"🟢 WebSocket connect: {self.ip} | Username: {self.username}")
 
-        # 3. RTSP URL yasash
-        rtsp_url = f"rtsp://{username_encoded}:{password_encoded}@{ip}:554/Streaming/Channels/{channel_id}/"
-        print(f"🔗 RTSP URL: {rtsp_url}")
+            asyncio.create_task(self.stream_camera())
 
-        # 4. ffmpeg komandasi tayyorlanadi
-        cmd = [
-            "ffmpeg",
-            "-rtsp_transport", "tcp",
-            "-i", rtsp_url,
-            "-f", "mjpeg",
-            "-q", "5",
-            "-r", "25",
-            "-"
-        ]
-        print(f"⚙️ FFMPEG komandasi: {' '.join(cmd)}")
+        except Exception as e:
+            print(f"❌ [connect] Xatolik: {e}")
+            await self.close()
 
-        # 5. ffmpeg jarayonini boshlaymiz
-        pipe = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=10**8)
-        print("✅ FFMPEG jarayoni muvaffaqiyatli ishga tushdi")
-
-        # 6. Stream generator funksiya
-        def stream():
+    async def disconnect(self, close_code):
+        print(f"🔴 WebSocket disconnect: {self.ip}")
+        if hasattr(self, 'process') and self.process:
             try:
-                while True:
-                    chunk = pipe.stdout.read(4096)
-                    if not chunk:
-                        print("⚠️ [stream] Pipe stdout bo'sh - oqim tugadi yoki uzildi")
-                        break
-                    yield (b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + chunk + b"\r\n")
+                self.process.kill()
+                print(f"🛑 FFMPEG process to‘xtatildi (PID: {self.process.pid})")
             except Exception as e:
-                print(f"❌ [stream] Stream davomida xatolik: {e}")
-            finally:
-                print("🛑 [stream] FFMPEG jarayonini to'xtatyapmiz")
-                pipe.kill()
+                print(f"⚠️ [disconnect] Process kill xatolik: {e}")
 
-        print("\n================ 📡 [generate_ffmpeg_stream] Tugadi ================\n")
+    async def stream_camera(self):
+        try:
+            username_encoded = urllib.parse.quote(self.username, safe='')
+            password_encoded = urllib.parse.quote(self.password, safe='')
+            rtsp_url = f"rtsp://{username_encoded}:{password_encoded}@{self.ip}:554/cam/realmonitor?channel=1&subtype=0"
 
-        # 7. stream(), err=None, va pipe obyektni qaytaramiz
-        return stream, None, pipe
+            print(f"🔗 RTSP URL: {rtsp_url}")
 
-    except Exception as e:
-        print(f"💥 [generate_ffmpeg_stream] Umumiy xatolik: {e}")
-        print("\n================ 📡 [generate_ffmpeg_stream] Xatolikda tugadi ================\n")
-        return None, str(e), None
+            cmd = [
+                "ffmpeg",
+                "-fflags", "nobuffer",
+                "-rtsp_transport", "tcp",
+                "-i", rtsp_url,
+                "-vf", "scale=1280:720",
+                "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency", "-b:v", "1500k",
+                "-an",
+                "-f", "mpegts",
+                "-"
+            ]
+            print(f"⚙️ FFMPEG komandasi tayyorlandi")
 
+            self.process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                bufsize=10 ** 8
+            )
+            print(f"🚀 FFMPEG process ishga tushdi (PID: {self.process.pid})")
 
-async def async_stream(pipe):
-    try:
-        jpeg_start = b'\xff\xd8'
-        jpeg_end = b'\xff\xd9'
-        buffer = b''
+            async def read_stdout():
+                packet_count = 0
+                try:
+                    while True:
+                        data = await asyncio.get_event_loop().run_in_executor(None, self.process.stdout.read, 4096)
+                        if not data:
+                            print("⚠️ STDOUT oqimi tugadi")
+                            break
+                        await self.send(bytes_data=data)
+                        packet_count += 1
+                        if packet_count % 50 == 0:
+                            print(f"📦 Oqim davom etmoqda... ({packet_count * 4} KB uzatildi)")
+                except Exception as e:
+                    print(f"❌ STDOUT o'qishda xatolik: {e}")
 
-        while True:
-            chunk = await asyncio.get_running_loop().run_in_executor(None, pipe.stdout.read, 4096)
-            if not chunk:
-                print("⚠️ [async_stream] Pipe stdout bo'sh - oqim tugadi yoki uzildi")
-                break
+            async def read_stderr():
+                last_error = ""
+                try:
+                    while True:
+                        error_line = await asyncio.get_event_loop().run_in_executor(None, self.process.stderr.readline)
+                        if not error_line:
+                            print("⚠️ STDERR oqimi tugadi")
+                            break
+                        error_message = error_line.decode(errors='ignore').strip()
+                        if error_message and error_message != last_error:
+                            last_error = error_message
+                            print(f"🛑 FFMPEG STDERR: {error_message}")
+                except Exception as e:
+                    print(f"❌ STDERR o'qishda xatolik: {e}")
 
-            buffer += chunk
-            start = buffer.find(jpeg_start)
-            end = buffer.find(jpeg_end)
+            await asyncio.gather(read_stdout(), read_stderr())
 
-            if start != -1 and end != -1 and end > start:
-                frame = buffer[start:end + 2]
-                buffer = buffer[end + 2:]
+            return_code = self.process.wait()
+            if return_code != 0:
+                print(f"❌ FFMPEG jarayoni xato kodi bilan yakunlandi: {return_code}")
+            else:
+                print("✅ FFMPEG jarayoni muvaffaqiyatli tugadi")
 
-                multipart_frame = (
-                    b"--frame\r\n"
-                    b"Content-Type: image/jpeg\r\n\r\n" +
-                    frame +
-                    b"\r\n"
-                )
+        except Exception as e:
+            import traceback
+            print("\n" + "=" * 80)
+            print(f"❌ [stream_camera] YAKUNIY XATOLIK:")
+            print("-" * 80)
+            print(traceback.format_exc())
+            print("=" * 80 + "\n")
+        finally:
+            if hasattr(self, 'process') and self.process:
+                try:
+                    self.process.kill()
+                    print(f"🛑 [finally] FFMPEG process to‘xtatildi (PID: {self.process.pid})")
+                except Exception as e:
+                    print(f"⚠️ [finally] Process kill xatolik: {e}")
 
-                yield multipart_frame
-    except Exception as e:
-        print(f"❌ [async_stream] Stream davomida xatolik: {e}")
-    finally:
-        print("🛑 [async_stream] FFMPEG jarayonini to'xtatyapmiz")
-        pipe.kill()
-
-
-# Kamera oqimi view
-@csrf_exempt
-async def camera_stream_mjpeg(request, ip):
-    print("\n================ 🎥 [camera_stream_mjpeg] Boshlanishi ================\n")
-    print(f"🛜 Oqim so'rovi qabul qilindi | IP: {ip}")
-
-    try:
-        camera = await sync_to_async(get_object_or_404)(Camera, source=ip)
-        username = camera.username or "admin"
-        password = camera.password or "Qwerty@1234560"
-        print(f"✅ Kamera bazadan topildi: {camera.name} (username: {username})")
-    except Camera.DoesNotExist:
-        print("⚠️ Kamera topilmadi, GET parametrlaridan olamiz")
-        username = request.GET.get("username", "admin")
-        password = request.GET.get("password", "Qwerty@1234560")
-
-    stream_type = request.GET.get("stream", "main").lower()
-    if stream_type not in ["main", "sub"]:
-        print(f"⚠️ Noto'g'ri stream_type '{stream_type}', 'main' qilib belgilayapmiz")
-        stream_type = "main"
-    else:
-        print(f"🔎 So'ralgan stream turi: {stream_type}")
-
-    print("🔧 Oqim tayyorlash uchun generate_ffmpeg_stream chaqirilmoqda...")
-
-    stream_func, err, pipe = generate_ffmpeg_stream(ip, username, password, stream_type)
-
-    if stream_func and pipe:
-        print("✅ Stream generator tayyorlandi, StreamingHttpResponse yuborilmoqda")
-        print("\n================ 🎥 [camera_stream_mjpeg] Tugadi ================\n")
-
-        # Django StreamingHttpResponse bilan qaytaramiz
-        response = StreamingHttpResponse(
-            async_stream(pipe),
-            content_type='multipart/x-mixed-replace; boundary=frame'
-        )
-        return response
-
-    print(f"❌ Stream tayyorlanmadi: {err}")
-    print("\n================ 🎥 [camera_stream_mjpeg] Xatolikda tugadi ================\n")
-    from django.http import HttpResponse
-    return HttpResponse(f"❌ Kamera oqimi mavjud emas: {err}", status=404)
 
 def try_rtsp_login(ip):
     return {'ip': ip, 'info': 'Aniqlandi'}  # Faqat aniqlangan deb qaytariladi
@@ -277,10 +262,18 @@ def camera_list(request):
 
 
 def ajax_camera_list(request):
-    cameras = list(Camera.objects.all().order_by('-created_at').values(
-        'id', 'name', 'type', 'source', 'is_active', 'selected'))
-    ip_cameras = scan_rtsp_enabled_cameras_parallel('10.10.4.0/24')
-    return JsonResponse({'cameras': cameras, 'ip_cameras': ip_cameras})
+    saved_cameras = Camera.objects.all().order_by('-created_at').values(
+        'id', 'name', 'type', 'source', 'is_active', 'selected'
+    )
+    saved_ips = set(cam['source'] for cam in saved_cameras if cam['type'] == 'ip')
+
+    found_cameras = scan_rtsp_enabled_cameras_parallel('10.10.4.0/24')
+    ip_cameras = [cam for cam in found_cameras if cam['ip'] not in saved_ips]
+
+    return JsonResponse({
+        'cameras': list(saved_cameras),
+        'ip_cameras': ip_cameras
+    })
 
 
 @require_POST

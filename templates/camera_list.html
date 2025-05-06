@@ -4,58 +4,88 @@
 {% block title %}Kameralar boshqaruvi{% endblock %}
 
 {% block content %}
-    <div class="bg-white/80 backdrop-blur-sm p-6 rounded-xl shadow-md">
-        <div class="flex justify-between items-center mb-4">
-            <h2 class="text-xl font-semibold text-gray-800">🎥 IP Kameralar ro'yxati</h2>
+
+    <style>
+        #streamLoading, #streamError {
+            transition: opacity 0.3s ease;
+        }
+
+        #streamError {
+            background-color: rgba(255, 255, 255, 0.9);
+            font-size: 1.2rem;
+            text-align: center;
+            padding: 1rem;
+        }
+    </style>
+
+    <!-- Asosiy blok -->
+    <div class="bg-white/80 backdrop-blur-md p-6 rounded-2xl shadow-2xl space-y-10">
+
+        <!-- Sarlavha -->
+        <div class="flex items-center justify-between mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 tracking-wide">IP Kameralar Boshqaruvi</h2>
         </div>
 
-        <div class="mb-6">
-            <h3 class="text-lg font-medium text-gray-700 mb-2">
-                🌐 Tarmoqqa ulangan IP Kameralar
-                <span class="text-sm text-gray-500 ml-2" id="cameraCount"></span>
-            </h3>
-
-            <div class="mb-4">
-                <input type="text" id="cameraSearch" placeholder="🔍 IP yoki matn bo‘yicha qidirish..."
-                       class="w-full border border-gray-300 rounded px-4 py-2 text-sm"
-                       oninput="filterCameras()">
+        <!-- Tarmoqdagi Kameralar -->
+        <section class="space-y-6">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-gray-700 flex items-center gap-2">
+                    Tarmoqdagi Kameralar
+                    <span id="cameraCount" class="text-sm text-gray-500"></span>
+                </h3>
             </div>
 
+            <div class="relative">
+                <input id="cameraSearch" type="text"
+                       placeholder="IP yoki nom bo‘yicha qidirish..."
+                       oninput="filterCameras()"
+                       class="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:border-blue-400">
+            </div>
+
+            <!-- Yuklanmoqda spinner -->
             <div id="cameraLoader" class="flex justify-center py-10">
-                <div class="animate-spin rounded-full h-10 w-10 border-t-4 border-blue-500 border-solid"></div>
+                <div class="h-10 w-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
             </div>
 
+            <!-- Kameralar ro'yxati -->
             <div id="cameraList"
-                 class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4 hidden"></div>
-        </div>
+                 class="hidden grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4"></div>
+        </section>
 
-        <div class="overflow-x-auto">
-            <h3 class="text-lg font-medium text-gray-700 mb-2">📦 Saqlangan kameralar</h3>
-            <table class="w-full table-auto border rounded text-sm">
-                <thead class="bg-gray-100 text-left">
-                <tr>
-                    <th class="p-2 border">#</th>
-                    <th class="p-2 border">Nomi</th>
-                    <th class="p-2 border">Turi</th>
-                    <th class="p-2 border">Manba</th>
-                    <th class="p-2 border">Holati</th>
-                    <th class="p-2 border">Tanlangan</th>
-                    <th class="p-2 border">Amallar</th>
-                </tr>
-                </thead>
-                <tbody id="savedCameraList"></tbody>
-            </table>
-        </div>
+        <!-- Saqlangan Kameralar -->
+        <section class="space-y-6">
+            <h3 class="text-lg font-semibold text-gray-700">Saqlangan Kameralar</h3>
+
+            <div class="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
+                <table class="min-w-full text-sm text-gray-800 text-center">
+                    <thead class="bg-gray-100 text-xs font-semibold tracking-wider uppercase">
+                    <tr>
+                        <th class="p-3 border">#</th>
+                        <th class="p-3 border">Nomi</th>
+                        <th class="p-3 border">Turi</th>
+                        <th class="p-3 border">Manba</th>
+                        <th class="p-3 border">Holati</th>
+                        <th class="p-3 border">Tanlangan</th>
+                        <th class="p-3 border">Amallar</th>
+                    </tr>
+                    </thead>
+                    <tbody id="savedCameraList" class="divide-y divide-gray-100 bg-white"></tbody>
+                </table>
+            </div>
+        </section>
+
     </div>
 
-    <!-- Kamera qo‘shish modal (Yumshoq fadeIn animatsiyali) -->
+    <!-- Kamera Qo‘shish/Tahrirlash Modal -->
     <div id="cameraModal"
-         class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-        <div class="bg-white p-6 rounded-xl shadow-xl animate-fadeIn w-full max-w-md">
-            <div class="flex items-center justify-between mb-4 border-b pb-2">
-                <h3 id="modalTitle" class="text-xl font-semibold text-gray-800">📷 IP Kamera qo‘shish</h3>
-                <button onclick="closeCameraModal()" class="text-gray-500 hover:text-red-500 text-lg font-bold">
-                    &times;
+         class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md space-y-6 animate-fadeIn">
+
+            <div class="flex items-center justify-between">
+                <h3 id="modalTitle" class="text-xl font-bold text-gray-800">📷 Kamera Qo‘shish</h3>
+                <button onclick="closeCameraModal()"
+                        class="text-gray-500 hover:text-red-500 text-2xl font-bold transition">
+                    ×
                 </button>
             </div>
 
@@ -64,280 +94,371 @@
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Kamera nomi</label>
-                    <input type="text" id="cameraName" required placeholder="Masalan: Kirish eshigi"
-                           class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <input id="cameraName" required
+                           placeholder="Masalan: Kirish eshigi"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400">
                 </div>
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Foydalanuvchi nomi</label>
-                    <input type="text" id="cameraUsername" required placeholder="admin"
-                           class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <input id="cameraUsername" required
+                           placeholder="admin"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400">
                 </div>
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Parol</label>
-                    <input type="password" id="cameraPassword" required placeholder="••••••••••"
-                           class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <input id="cameraPassword" required type="password"
+                           placeholder="••••••••••"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400">
                 </div>
 
-                <div class="flex justify-end gap-2 pt-4 border-t mt-4">
+                <div class="flex justify-end items-center gap-4 pt-4 border-t">
                     <button type="button" onclick="closeCameraModal()" class="text-sm text-gray-600 hover:text-red-600">
                         🚫 Bekor qilish
                     </button>
-                    <button type="button" onclick="testLogin()"
-                            class="hover:bg-blue-20 text-gray-600 px-4 py-2 text-sm rounded shadow">
+
+                    <!-- 🔥 Tekshirish va Yangilash tugmalari -->
+                    <button id="checkButton" type="button" onclick="testLogin()"
+                            class="text-sm text-white bg-blue-500 hover:bg-blue-600 rounded-lg px-4 py-2 transition">
                         🔍 Tekshir
                     </button>
+
+                    <button id="updateButton" type="button" onclick="updateCamera()"
+                            class="hidden text-sm text-white bg-green-500 hover:bg-green-600 rounded-lg px-4 py-2 transition">
+                        ✏️ Yangilash
+                    </button>
                 </div>
+
             </form>
         </div>
     </div>
-    <!-- Spinner -->
-    <div id="modalLoader" class="hidden flex justify-center items-center py-2">
-        <div class="animate-spin h-6 w-6 border-4 border-blue-500 border-t-transparent rounded-full"></div>
-        <span class="ml-2 text-sm text-gray-600">Tekshirilmoqda...</span>
+
+    <!-- Modal loader (faqat tekshirish vaqtida) -->
+    <div id="modalLoader"
+         class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+        <div class="flex items-center gap-3">
+            <div class="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full"></div>
+            <span class="text-white text-sm">Tekshirilmoqda...</span>
+        </div>
     </div>
 
-    <!-- Kamera oqimi Modal -->
-    <div id="streamModal" class="hidden fixed inset-0 z-50 bg-black bg-opacity-70 flex items-center justify-center">
-        <div class="relative bg-white rounded-2xl p-6 pt-12 w-full max-w-6xl shadow-lg">
-            <!-- Yopish tugmasi (modal tashqarisida) -->
-            <button onclick="closeStreamModal()"
-                    class="absolute -top-4 right-6 bg-white text-gray-700 text-2xl font-bold rounded-full shadow p-2 hover:text-red-600 z-50">
-                &times;
-            </button>
+    <!-- Kamera Stream Modal -->
+    <div id="streamModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+        <div class="relative bg-white rounded-2xl w-full max-w-5xl overflow-hidden shadow-2xl">
 
-            <div class="relative aspect-video overflow-hidden rounded-xl border border-gray-300 bg-black">
-                <!-- 🔥 LIVE img (stream uchun) -->
-                <img id="streamFrameImg" class="absolute inset-0 w-full h-full object-cover rounded" alt="Camera Stream"
-                     style="z-index: 10;"/>
+            <!-- Video konteyner -->
+            <div class="relative w-full aspect-video bg-black rounded-2xl overflow-hidden">
 
-                <!-- 🔥 Replay video -->
-                <video id="streamFrameVideo" class="absolute inset-0 w-full h-full object-cover rounded hidden" controls
-                       preload="auto" style="z-index: 10;"></video>
+                <!-- Stream Video -->
+                <video id="streamVideo"
+                       class="absolute inset-0 w-full h-full object-cover"
+                       muted autoplay playsinline controls></video>
 
-                <!-- 🔥 Video boshqaruv tugmalari -->
-                <div id="videoControls"
-                     class="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-3 items-center z-30 hidden">
-                    <button onclick="seekVideo(-10)"
-                            class="bg-black/70 text-white text-sm px-4 py-1 rounded-full hover:bg-black/90">
-                        ⏪ 10s
-                    </button>
-                    <button onclick="togglePlayPause()"
-                            class="bg-black/70 text-white text-sm px-4 py-1 rounded-full hover:bg-black/90">
-                        ▶️
-                    </button>
-                    <button onclick="seekVideo(10)"
-                            class="bg-black/70 text-white text-sm px-4 py-1 rounded-full hover:bg-black/90">
-                        10s ⏩
-                    </button>
-                    <button onclick="toggleSpeed()"
-                            class="bg-black/70 text-white text-sm px-4 py-1 rounded-full hover:bg-black/90">
-                        1x
-                    </button>
+                <!-- Belgilar (Live, Kamera Nomi, Vaqt, FPS) -->
+                <div class="absolute inset-0 p-4 flex flex-col justify-between pointer-events-none">
+
+                    <div class="flex justify-between items-start">
+                        <!-- Live Badge -->
+                        <span id="liveBadge"
+                              class="hidden bg-red-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow pointer-events-auto">
+                        LIVE 🔴
+                    </span>
+
+                        <!-- Kamera Nomi -->
+                        <span id="cameraNameBadge"
+                              class="bg-black/70 text-white text-sm font-semibold px-3 py-1 rounded-full shadow pointer-events-auto">
+                        Kamera nomi
+                    </span>
+                    </div>
+
+                    <div class="flex justify-between items-end">
+                        <!-- FPS Badge -->
+                        <span id="fpsBadge"
+                              class="hidden bg-black/70 text-white text-sm font-semibold px-3 py-1 rounded-full shadow pointer-events-auto">
+                        0 FPS
+                    </span>
+
+                        <!-- Soat -->
+                        <span id="timeBadge"
+                              class="bg-black/70 text-white text-sm font-semibold px-3 py-1 rounded-full shadow pointer-events-auto">
+                        00:00:00
+                    </span>
+                    </div>
+
                 </div>
 
-                <!-- 🔥 Overlay badge'lar -->
-                <div id="liveBadge"
-                     class="absolute top-4 left-4 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-full shadow hidden z-20">
-                    LIVE 🔴
-                </div>
-                <div id="cameraNameBadge"
-                     class="absolute top-4 right-4 bg-black/70 text-white text-sm font-semibold px-3 py-1 rounded-full shadow z-20">
-                    Kamera nomi
-                </div>
-                <div id="timeBadge"
-                     class="absolute bottom-4 right-4 bg-black/70 text-white text-sm font-semibold px-3 py-1 rounded-full shadow z-20">
-                    00:00:00
-                </div>
-
-                <!-- Yuklanmoqda Spinner -->
+                <!-- Yuklanmoqda spinner -->
                 <div id="streamLoading"
-                     class="hidden absolute inset-0 flex items-center justify-center bg-white bg-opacity-70 text-gray-800 text-lg font-semibold rounded z-40">
+                     class="hidden absolute inset-0 flex items-center justify-center bg-white/30 text-gray-700 text-lg font-semibold animate-pulse z-40">
                     ⏳ Yuklanmoqda...
                 </div>
 
                 <!-- Xatolik -->
                 <div id="streamError"
-                     class="hidden absolute inset-0 flex items-center justify-center bg-white bg-opacity-80 text-red-600 text-lg font-semibold rounded z-40">
+                     class="hidden absolute inset-0 flex items-center justify-center bg-white/70 text-red-600 text-lg font-semibold z-40">
                     ❌ Kamera oqimini olishda xatolik yuz berdi
                 </div>
+
             </div>
+
+            <!-- Yopish tugmasi (eng yuqorida, videodan tashqarida!) -->
+            <button onclick="closeStreamModal()"
+                    class="absolute top-3 right-4 w-10 h-10 flex items-center justify-center bg-white text-gray-700 text-3xl font-bold rounded-full shadow hover:text-red-600 transition-all duration-300 z-50">
+                &times;
+            </button>
+
         </div>
     </div>
-
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <!-- mpegts.js kutubxonasini qo'shish -->
+    <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.7.3/dist/mpegts.min.js"></script>
     <script>
         window.addEventListener("load", () => {
-            fetch("/cameras/ajax-list/").then(res => res.json()).then(data => {
-                const cameraList = document.getElementById("cameraList");
-                const savedList = document.getElementById("savedCameraList");
-                const cameraCount = document.getElementById("cameraCount");
-                cameraList.innerHTML = "";
-                savedList.innerHTML = "";
-                cameraCount.innerText = `(${data.ip_cameras.length} ta topildi)`;
+            const cameraList = document.getElementById("cameraList");
+            const savedList = document.getElementById("savedCameraList");
+            const cameraCount = document.getElementById("cameraCount");
+            const cameraLoader = document.getElementById("cameraLoader");
 
-                data.ip_cameras.forEach(cam => {
-                    const div = document.createElement("div");
-                    div.className = "camera-card bg-white/30 backdrop-blur-md border border-white/30 shadow-lg rounded-2xl p-3 flex flex-col items-center text-center gap-1 hover:scale-105 transition";
-                    div.innerHTML = `
-                <div class="text-gray-800 font-medium text-sm">${cam.ip}</div>
-                <div class="text-gray-500 text-xs">${cam.info}</div>
-                <button onclick="openCameraModal('${cam.ip}')"
-                    class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded-full shadow">
-                    ➕ Qo‘shish
-                </button>`;
-                    cameraList.appendChild(div);
+            fetch("/cameras/ajax-list/")
+                .then(res => res.json())
+                .then(data => {
+                    cameraCount.textContent = `(${data.ip_cameras.length} ta topildi)`;
+                    cameraList.innerHTML = "";
+                    savedList.innerHTML = "";
+
+                    data.ip_cameras.forEach(cam => {
+                        const card = `
+                            <div class="camera-card bg-white/40 backdrop-blur-md border border-gray-200 shadow-md rounded-2xl p-4 flex flex-col items-center text-center gap-2 hover:scale-105 transition-all duration-300">
+                                <div class="text-gray-900 font-semibold text-sm truncate max-w-full">${cam.ip}</div>
+                                <div class="text-gray-500 text-xs truncate">${cam.info}</div>
+                                <button onclick="openCameraModal('${cam.ip}')"
+                                    class="mt-2 px-4 py-1 text-xs font-medium text-white bg-blue-600 rounded-full hover:bg-blue-700 transition">
+                                    Qo‘shish
+                                </button>
+                            </div>
+                        `;
+                        document.getElementById('cameraList').innerHTML += card;
+                    });
+
+                    data.cameras.forEach((cam, index) => {
+                        const isActiveBadge = cam.is_active
+                            ? `<span class="px-2 py-1 text-xs bg-green-100 text-green-700 rounded-full">Faol</span>`
+                            : `<span class="px-2 py-1 text-xs bg-red-100 text-red-700 rounded-full">Faol emas</span>`;
+
+                        const isSelectedBadge = cam.selected
+                            ? `<span class="text-xs font-semibold text-blue-600">Tanlangan</span>`
+                            : `<span class="text-xs text-gray-400">Yo‘q</span>`;
+
+                        const actions = `
+                            <div class="flex flex-wrap justify-center gap-1">
+                                <button onclick="showCameraStream('${cam.source}')"
+                                    class="px-2 py-1 text-xs text-indigo-600 border border-indigo-300 rounded hover:bg-indigo-50">
+                                    Jonli
+                                </button>
+                                <button onclick="toggleActive(${cam.id})"
+                                    class="px-2 py-1 text-xs ${cam.is_active ? 'text-gray-600' : 'text-green-600'} border border-gray-300 rounded hover:bg-gray-100">
+                                    ${cam.is_active ? 'O‘chirish' : 'Faollashtirish'}
+                                </button>
+                                <button onclick="selectCamera(${cam.id})"
+                                    class="px-2 py-1 text-xs text-blue-600 border border-blue-300 rounded hover:bg-blue-50">
+                                    Tanlash
+                                </button>
+                                <button onclick="openEditCameraModal('${cam.source}')"
+                                    class="px-2 py-1 text-xs text-yellow-600 border border-yellow-300 rounded hover:bg-yellow-50">
+                                    Tahrirlash
+                                </button>
+                                <button onclick="deleteCamera(${cam.id})"
+                                    class="px-2 py-1 text-xs text-red-600 border border-red-300 rounded hover:bg-red-50">
+                                    O‘chirish
+                                </button>
+                            </div>
+                        `;
+
+                        const row = `
+                            <tr class="text-center hover:bg-gray-50 transition">
+                                <td class="p-2 border">${index + 1}</td>
+                                <td class="p-2 border font-semibold">${cam.name}</td>
+                                <td class="p-2 border capitalize">${cam.type}</td>
+                                <td class="p-2 border text-gray-600">${cam.source}</td>
+                                <td class="p-2 border">${isActiveBadge}</td>
+                                <td class="p-2 border">${isSelectedBadge}</td>
+                                <td class="p-2 border">${actions}</td>
+                            </tr>
+                        `;
+
+                        document.getElementById('savedCameraList').innerHTML += row;
+                    });
+
+                    cameraLoader.classList.add("hidden");
+                    cameraList.classList.remove("hidden");
                 });
-
-                data.cameras.forEach((cam, i) => {
-                    const row = document.createElement("tr");
-                    row.className = "hover:bg-gray-50";
-                    row.innerHTML = `
-                <td class="p-2 border">${i + 1}</td>
-                <td class="p-2 border">${cam.name}</td>
-                <td class="p-2 border">${cam.type}</td>
-                <td class="p-2 border">${cam.source}</td>
-                <td class="p-2 border">
-                    <span class="inline-block px-2 py-1 text-xs rounded-full ${cam.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">
-                        ${cam.is_active ? 'Faol' : 'Faol emas'}
-                    </span>
-                </td>
-                <td class="p-2 border">
-                    ${cam.selected ? '<span class="text-blue-600 text-xs font-medium">Tanlangan</span>' : '<span class="text-gray-400 text-xs">Yo‘q</span>'}
-                </td>
-                <td class="p-2 border">
-                    <div class="flex flex-wrap gap-2">
-                        <button onclick="showCameraStream('${cam.source}')"
-                            class="px-3 py-1 rounded-md text-xs font-medium border border-indigo-300 text-indigo-600 hover:bg-indigo-50">
-                            Jonli ko‘rish
-                        </button>
-                        <button onclick="toggleActive(${cam.id})"
-                            class="px-3 py-1 rounded-md text-xs font-medium border border-gray-300 hover:bg-gray-100">
-                            ${cam.is_active ? 'O‘chirish' : 'Faollashtirish'}
-                        </button>
-                        <button onclick="selectCamera(${cam.id})"
-                            class="px-3 py-1 rounded-md text-xs font-medium border border-blue-300 text-blue-600 hover:bg-blue-50">
-                            Tanlash
-                        </button>
-                        <button onclick="deleteCamera(${cam.id})"
-                            class="px-3 py-1 rounded-md text-xs font-medium border border-red-300 text-red-600 hover:bg-red-50">
-                            O‘chirish
-                        </button>
-                    </div>
-                </td>
-            `;
-                    savedList.appendChild(row);
-                });
-
-                document.getElementById("cameraLoader").classList.add("hidden");
-                cameraList.classList.remove("hidden");
-            });
         });
-        let clockInterval = null;
 
-        function startClock(badgeElement) {
-            if (clockInterval) clearInterval(clockInterval); // Eski intervalni to'xtatamiz
+        const csrfToken = '{{ csrf_token }}';
 
-            function updateClock() {
-                const now = new Date();
-                const timeString = now.toLocaleTimeString('uz-UZ', {hour12: false});
-                badgeElement.textContent = timeString;
-            }
-
-            updateClock(); // Birinchi marta chaqiramiz
-            clockInterval = setInterval(updateClock, 1000); // Har 1 sekundda yangilab turamiz
+        function $(id) {
+            return document.getElementById(id);
         }
 
-        function openCameraModal(ip) {
-            document.getElementById('cameraModal').classList.remove('hidden');
-            document.getElementById('cameraForm').reset();
-            document.getElementById('cameraIp').value = ip;
+        function openEditCameraModal(ip) {
+            fetch(`/cameras/edit/${ip}/`)
+                .then(res => res.json())
+                .then(cam => {
+                    if (cam.status === 'error') {
+                        Swal.fire('❌ Xatolik', cam.message || 'Kamera topilmadi.', 'error');
+                        return;
+                    }
+                    document.getElementById('cameraModal').classList.remove('hidden');
+                    document.getElementById('cameraForm').reset();
+
+                    // Formani to'ldirish
+                    document.getElementById('cameraIp').value = cam.source || '';
+                    document.getElementById('cameraName').value = cam.name || '';
+                    document.getElementById('cameraUsername').value = cam.username || '';
+                    document.getElementById('cameraPassword').value = cam.password || '';
+
+                    document.getElementById('modalTitle').innerText = "📋 Kamerani Tahrirlash";
+
+                    // Tahrirlaganimizni bilib turish uchun ip ni saqlaymiz
+                    document.getElementById('cameraForm').dataset.editing = "true";
+                })
+                .catch(err => {
+                    Swal.fire('❌ Xatolik', 'Kamera maʼlumotlarini olishda xatolik.', 'error');
+                    console.error(err);
+                });
         }
 
-        function closeCameraModal() {
-            document.getElementById('cameraModal').classList.add('hidden');
-        }
-
-        function testLogin() {
+        function updateCamera() {
             const ip = document.getElementById('cameraIp').value;
+            const name = document.getElementById('cameraName').value;
             const username = document.getElementById('cameraUsername').value;
             const password = document.getElementById('cameraPassword').value;
-            const name = document.getElementById('cameraName').value;
+            const editing = document.getElementById('cameraForm').dataset.editing === "true";
 
-            // Spinnerni ko‘rsatish
-            document.getElementById('modalLoader').classList.remove('hidden');
+            const url = editing ? `/cameras/update/${ip}/` : "/cameras/save/";
+            const method = editing ? "PATCH" : "POST";
 
-            fetch("/cameras/try-login/", {
-                method: "POST",
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token }}'
-                },
-                body: JSON.stringify({ip, username, password})
-            }).then(res => res.json()).then(response => {
-                // Spinnerni yashirish
-                document.getElementById('modalLoader').classList.add('hidden');
-
-                if (response.status === "ok") {
-                    saveCamera(ip, username, password, name);
-                } else {
-                    Swal.fire("❌ Xatolik", response.message, "error");
-                }
-            }).catch(err => {
-                document.getElementById('modalLoader').classList.add('hidden');
-                Swal.fire("❌ Xatolik", "Server bilan bog‘lanishda xatolik", "error");
-            });
-        }
-
-        function saveCamera(ip, username, password, name) {
-            fetch("/cameras/save/", {
-                method: "POST",
+            fetch(url, {
+                method: method,
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': '{{ csrf_token }}'
                 },
                 body: JSON.stringify({
                     name: name,
-                    type: 'ip',
-                    source: ip,
                     username: username,
-                    password: password
+                    password: password,
+                    source: ip,
+                    type: "ip"  // IP kamera tahrirlayapmiz
                 })
-            }).then(res => res.json()).then(response => {
+            }).then(res => res.json())
+                .then(response => {
+                    if (response.status === "ok") {
+                        Swal.fire("✅ Muvaffaqiyatli", response.message, "success").then(() => location.reload());
+                    } else {
+                        Swal.fire("❌ Xatolik", response.message, "error");
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    Swal.fire("❌ Server xatoligi", "Maʼlumotlarni yuborib bo‘lmadi", "error");
+                });
+        }
+
+        function openCameraModal(ip) {
+            $('cameraModal').classList.remove('hidden');
+            $('cameraForm').reset();
+            $('cameraIp').value = ip;
+        }
+
+        function closeCameraModal() {
+            $('cameraModal').classList.add('hidden');
+        }
+
+        function showLoader(show = true) {
+            $('modalLoader').classList.toggle('hidden', !show);
+        }
+
+        async function testLogin() {
+            const ip = $('cameraIp').value;
+            const username = $('cameraUsername').value;
+            const password = $('cameraPassword').value;
+            const name = $('cameraName').value;
+
+            showLoader(true);
+
+            try {
+                const res = await fetch("/cameras/try-login/", {
+                    method: "POST",
+                    headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+                    body: JSON.stringify({ip, username, password})
+                });
+                const response = await res.json();
+                showLoader(false);
+
+                if (response.status === "ok") {
+                    saveCamera({ip, username, password, name});
+                } else {
+                    Swal.fire("❌ Xatolik", response.message, "error");
+                }
+            } catch (error) {
+                showLoader(false);
+                Swal.fire("❌ Xatolik", "Server bilan bog‘lanishda xatolik", "error");
+            }
+        }
+
+        async function saveCamera({ip, username, password, name}) {
+            try {
+                const res = await fetch("/cameras/save/", {
+                    method: "POST",
+                    headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+                    body: JSON.stringify({name, type: 'ip', source: ip, username, password})
+                });
+                const response = await res.json();
+
                 if (response.status === "ok") {
                     Swal.fire("✅ Muvaffaqiyatli", response.message, "success").then(() => location.reload());
                 } else {
                     Swal.fire("❌ Xatolik", response.message, "error");
                 }
-            });
+            } catch (error) {
+                Swal.fire("❌ Xatolik", "Ma'lumot saqlashda xatolik", "error");
+            }
         }
 
         function filterCameras() {
-            const search = document.getElementById('cameraSearch').value.toLowerCase();
-            const cards = document.querySelectorAll('.camera-card');
-            cards.forEach(card => {
-                const text = card.innerText.toLowerCase();
-                card.style.display = text.includes(search) ? 'block' : 'none';
+            const search = $('cameraSearch').value.toLowerCase();
+            document.querySelectorAll('.camera-card').forEach(card => {
+                card.style.display = card.innerText.toLowerCase().includes(search) ? 'block' : 'none';
             });
         }
 
-        function toggleActive(id) {
-            fetch(`/cameras/toggle/${id}/`, {
-                method: "POST",
-                headers: {
-                    'X-CSRFToken': '{{ csrf_token }}'
+        async function simplePost(url, successMessage) {
+            try {
+                const res = await fetch(url, {
+                    method: "POST",
+                    headers: {'X-CSRFToken': csrfToken}
+                });
+                const response = await res.json();
+
+                if (response.status === "ok" || response.success) {
+                    Swal.fire("✅ Muvaffaqiyatli", successMessage, "success").then(() => location.reload());
+                } else {
+                    Swal.fire("❌ Xatolik", response.message || "Amalni bajarishda xatolik", "error");
                 }
-            }).then(res => res.json()).then(() => location.reload());
+            } catch (error) {
+                Swal.fire("❌ Xatolik", "Server bilan bog‘lanishda xatolik", "error");
+            }
+        }
+
+        function toggleActive(id) {
+            simplePost(`/cameras/toggle/${id}/`, "Kamera holati o‘zgartirildi!");
         }
 
         function selectCamera(id) {
-            fetch(`/cameras/select/${id}/`, {
-                method: "POST",
-                headers: {
-                    'X-CSRFToken': '{{ csrf_token }}'
-                }
-            }).then(res => res.json()).then(() => location.reload());
+            simplePost(`/cameras/select/${id}/`, "Kamera tanlandi!");
         }
 
         function deleteCamera(id) {
@@ -351,168 +472,147 @@
                 confirmButtonText: 'Ha, o‘chirish!'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    fetch(`/cameras/delete/${id}/`, {
-                        method: "POST",
-                        headers: {
-                            'X-CSRFToken': '{{ csrf_token }}'
-                        }
-                    }).then(res => res.json()).then(() => location.reload());
+                    simplePost(`/cameras/delete/${id}/`, "Kamera o‘chirildi!");
                 }
             });
         }
 
-        let currentSpeed = 1.0;
-        let isPaused = true;
+        let player = null;
+        let clockInterval = null;
+        let reconnectTimeout = null;
 
-        // Play / Pause tugmasi
-        function togglePlayPause() {
-            const video = document.getElementById('streamFrameVideo');
-            const playPauseButton = document.querySelector('#videoControls button:nth-child(2)');
+        function startClock(badge) {
+            clearInterval(clockInterval);
+            clockInterval = setInterval(() => {
+                badge.textContent = new Date().toLocaleTimeString('uz-UZ', {hour12: false});
+            }, 1000);
+        }
 
-            if (video.paused) {
-                video.play();
-                playPauseButton.textContent = '⏸'; // Pause belgisi
-                isPaused = false;
-            } else {
+        function closeStreamModal() {
+            const modal = document.getElementById('streamModal');
+            const video = document.getElementById('streamVideo');
+
+            ['streamError', 'streamLoading', 'liveBadge', 'fpsBadge'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('hidden');
+            });
+
+            if (player) {
+                player.destroy();
+                player = null;
+                console.log("🛑 MPEGTS player destroy qilindi");
+            }
+            if (video) {
                 video.pause();
-                playPauseButton.textContent = '▶️'; // Play belgisi
-                isPaused = true;
-            }
-        }
-
-        // 10 sekund oldinga yoki orqaga o'tkazish
-        function seekVideo(seconds) {
-            const video = document.getElementById('streamFrameVideo');
-            video.currentTime += seconds;
-        }
-
-        // Speed 0.5x / 1x / 2x aylantirish
-        function toggleSpeed() {
-            const video = document.getElementById('streamFrameVideo');
-            const speedButton = document.querySelector('#videoControls button:nth-child(4)');
-
-            if (currentSpeed === 1.0) {
-                currentSpeed = 2.0;
-            } else if (currentSpeed === 2.0) {
-                currentSpeed = 0.5;
-            } else {
-                currentSpeed = 1.0;
+                video.src = "";
+                video.load();
             }
 
-            video.playbackRate = currentSpeed;
-            speedButton.textContent = `${currentSpeed}x`;
+            if (clockInterval) {
+                clearInterval(clockInterval);
+                clockInterval = null;
+            }
+
+            if (reconnectTimeout) {
+                clearTimeout(reconnectTimeout);
+                reconnectTimeout = null;
+            }
+
+            modal.classList.add('hidden');
+            console.log("📛 Stream modal yopildi va tozalandi.");
         }
 
-        async function showCameraStream(ip, mode = "live", startTime = null, endTime = null) {
+        document.addEventListener('keydown', e => {
+            if (e.key === "Escape") closeStreamModal();
+        });
+
+        async function showCameraStream(ip) {
             console.log("\n================ 🚀 [showCameraStream] Boshlanishi ================\n");
 
             const host = window.location.hostname;
-            const streamModal = document.getElementById('streamModal');
-            const streamFrameImg = document.getElementById('streamFrameImg');
-            const streamFrameVideo = document.getElementById('streamFrameVideo');
-            const streamError = document.getElementById('streamError');
-            const streamLoading = document.getElementById('streamLoading');
+            const modal = document.getElementById('streamModal');
+            const video = document.getElementById('streamVideo');
+            const loading = document.getElementById('streamLoading');
+            const error = document.getElementById('streamError');
             const liveBadge = document.getElementById('liveBadge');
             const cameraNameBadge = document.getElementById('cameraNameBadge');
             const timeBadge = document.getElementById('timeBadge');
+            const fpsBadge = document.getElementById('fpsBadge');
+
+            closeStreamModal();
 
             try {
                 const response = await fetch(`/cameras/edit/${ip}/`);
                 const camera = await response.json();
 
                 if (camera.status === 'error') {
-                    console.error("⚠️ Kamera topilmadi.");
-                    streamLoading.classList.add('hidden');
-                    streamError.classList.remove('hidden');
-                    streamModal.classList.remove('hidden');
+                    error.textContent = camera.message || "Kamera topilmadi";
+                    error.classList.remove('hidden');
+                    modal.classList.remove('hidden');
                     return;
                 }
 
-                let streamUrl = "";
-                if (mode === "live") {
-                    streamUrl = `http://${host}:8000/cameras/live/${ip}/?username=${encodeURIComponent(camera.username)}&password=${encodeURIComponent(camera.password)}`;
-                } else if (mode === "replay" && startTime && endTime) {
-                    streamUrl = `http://${host}:8000/cameras/replay/${ip}/?username=${encodeURIComponent(camera.username)}&password=${encodeURIComponent(camera.password)}&start=${startTime}&end=${endTime}`;
-                }
+                const wsUrl = `ws://${host}:8000/ws/stream/${ip}/?username=${encodeURIComponent(camera.username)}&password=${encodeURIComponent(camera.password)}`;
+                console.log("🔗 WebSocket URL:", wsUrl);
 
-                console.log("🔗 [STREAM] URL:", streamUrl);
+                if (mpegts.getFeatureList().mseLivePlayback) {
+                    player = mpegts.createPlayer({
+                        type: 'mpegts',
+                        isLive: true,
+                        url: wsUrl,
+                        liveBufferLatencyChasing: true,
+                        liveBufferLatencyMax: 2,
+                        enableWorker: true,
+                        enableStashBuffer: false,
+                    });
 
-                cameraNameBadge.textContent = camera.name || "Noma'lum Kamera";
+                    player.attachMediaElement(video);
+                    player.load();
+                    player.play();
 
-                if (mode === "live") {
-                    streamFrameImg.src = streamUrl;
-                    streamFrameImg.classList.remove('hidden');
-                    streamFrameVideo.classList.add('hidden');
-                    liveBadge.classList.remove('hidden');
-                    document.getElementById('videoControls').classList.add('hidden');
+                    player.on(mpegts.Events.ERROR, (type, detail) => {
+                        console.error("💥 MPEGTS xatosi:", {type, detail});
+                        error.textContent = `Xatolik: ${type} - ${detail}`;
+                        error.classList.remove('hidden');
+                        loading.classList.add('hidden');
 
-                    streamFrameImg.onload = () => {
-                        streamLoading.classList.add('hidden');
-                        streamError.classList.add('hidden');
-                    };
-                    streamFrameImg.onerror = () => {
-                        streamLoading.classList.add('hidden');
-                        streamError.classList.remove('hidden');
-                    };
+                        // Reconnect
+                        if (!reconnectTimeout) {
+                            console.warn("♻️ 5 sekunddan so'ng qayta urinish...");
+                            reconnectTimeout = setTimeout(() => {
+                                showCameraStream(ip);
+                            }, 5000);
+                        }
+                    });
 
+                    player.on(mpegts.Events.STATISTICS_INFO, (info) => {
+                        console.log("📊 Oqim statistikasi:", info);
+                        loading.classList.add('hidden');
+                        liveBadge.classList.remove('hidden');
+                        fpsBadge.classList.remove('hidden');
+                        fpsBadge.textContent = `${info.fps || 0} FPS`;
+                    });
+
+                    modal.classList.remove('hidden');
+                    loading.classList.remove('hidden');
+
+                    cameraNameBadge.textContent = camera.name || ip;
+                    startClock(timeBadge);
                 } else {
-                    streamFrameVideo.src = streamUrl;
-                    streamFrameVideo.classList.remove('hidden');
-                    streamFrameImg.classList.add('hidden');
-                    liveBadge.classList.add('hidden');
-                    document.getElementById('videoControls').classList.remove('hidden');
-
-                    streamFrameVideo.load();
-                    streamFrameVideo.onloadeddata = () => {
-                        streamLoading.classList.add('hidden');
-                        streamError.classList.add('hidden');
-                    };
-                    streamFrameVideo.onerror = () => {
-                        streamLoading.classList.add('hidden');
-                        streamError.classList.remove('hidden');
-                    };
+                    console.error("❌ Brauzer MPEGTS oqimini qo‘llamaydi.");
+                    error.textContent = "Brauzer MPEG-TS oqimini qo‘llab-quvvatlamaydi.";
+                    error.classList.remove('hidden');
+                    modal.classList.remove('hidden');
                 }
-
-                streamModal.classList.remove('hidden');
-                streamLoading.classList.remove('hidden');
-                startClock(timeBadge);
-
-            } catch (error) {
-                console.error("💥 [EXCEPTION] Xatolik yuz berdi:", error);
-                streamLoading.classList.add('hidden');
-                streamError.classList.remove('hidden');
-                streamModal.classList.remove('hidden');
+            } catch (e) {
+                console.error("💥 [showCameraStream] Xatolik:", e);
+                error.textContent = `Xatolik: ${e.message || 'Noma\'lum xatolik'}`;
+                error.classList.remove('hidden');
+                modal.classList.remove('hidden');
             }
 
             console.log("\n================ 🚀 [showCameraStream] Tugadi ================\n");
         }
 
-        // Modalni yopish va tozalash
-        function closeStreamModal() {
-            const streamModal = document.getElementById('streamModal');
-            const streamFrameImg = document.getElementById('streamFrameImg');
-            const streamFrameVideo = document.getElementById('streamFrameVideo');
-            const streamError = document.getElementById('streamError');
-            const streamLoading = document.getElementById('streamLoading');
-
-            // 🔥 Streamlarni tozalash
-            if (streamFrameImg) {
-                streamFrameImg.src = "";
-                streamFrameImg.classList.add('hidden');
-            }
-            if (streamFrameVideo) {
-                streamFrameVideo.pause();
-                streamFrameVideo.src = "";
-                streamFrameVideo.load();
-                streamFrameVideo.classList.add('hidden');
-            }
-
-            // 🔥 Modal va xabarlarni yopish
-            streamModal.classList.add('hidden');
-            streamError.classList.add('hidden');
-            streamLoading.classList.add('hidden');
-
-            console.log("📛 Stream modal tozalandi va yopildi.");
-        }
     </script>
 {% endblock %}
