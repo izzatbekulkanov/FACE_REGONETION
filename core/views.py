@@ -119,6 +119,9 @@ encoding_progress_data = {
     "last_error": "",
 }
 
+def encoding_progress(request):
+    return JsonResponse(encoding_progress_data)
+
 @csrf_exempt
 def create_encodings(request):
     global encoding_progress_data
@@ -127,25 +130,26 @@ def create_encodings(request):
         return JsonResponse({"status": "error", "message": "Jarayon allaqachon boshlangan."})
 
     try:
-        users = list(CustomUser.objects.filter(face_image__isnull=False))
+        # Rasmli foydalanuvchilarni olish
+        users = list(CustomUser.objects.filter(face_image__isnull=False).exclude(face_encoding__isnull=False))
         total_users = len(users)
 
         encoding_progress_data.update({
             "total": total_users,
             "current": 0,
             "is_processing": True,
-            "last_error": "",
+            "last_error": ""
         })
 
-        print(f"\n👥 Foydalanuvchilar soni: {total_users}")
         logger.info(f"Foydalanuvchilar soni: {total_users}")
+        print(f"\n👥 Foydalanuvchilar soni: {total_users}")
 
         batch_size = 20
         num_batches = math.ceil(total_users / batch_size)
 
         for batch_index in range(num_batches):
-            print(f"\n📦 Batch {batch_index + 1} ishga tushdi")
             logger.info(f"Batch {batch_index + 1} ishga tushdi")
+            print(f"\n📦 Batch {batch_index + 1} ishga tushdi")
 
             start = batch_index * batch_size
             end = min(start + batch_size, total_users)
@@ -156,14 +160,7 @@ def create_encodings(request):
                     full_name = user.full_name or "[ISMSIZ]"
                     print(f"🔄 {encoding_progress_data['current'] + 1}/{total_users} | {full_name}")
 
-                    # 🔥 Avval tekshiramiz: FaceEncoding mavjudmi
-                    if hasattr(user, 'face_encoding'):
-                        msg = f"⏭️ Skip: {full_name} (encoding mavjud)"
-                        print(msg)
-                        logger.info(msg)
-                        encoding_progress_data["current"] += 1
-                        continue
-
+                    # Rasm mavjudligini tekshirish
                     if not user.face_image or not user.face_image.path or not os.path.exists(user.face_image.path):
                         msg = f"⚠️ Rasm yo‘q: {full_name}"
                         print(msg)
@@ -171,34 +168,16 @@ def create_encodings(request):
                         encoding_progress_data["current"] += 1
                         continue
 
-                    print(f"🖼️ Yuklanmoqda: {user.face_image.path}")
-                    img = cv2.imread(user.face_image.path)
-
-                    if img is None:
-                        msg = f"❌ Rasmni o‘qib bo‘lmadi: {user.face_image.path} | {full_name}"
-                        print(msg)
-                        logger.error(msg)
-                        encoding_progress_data["current"] += 1
-                        continue
-
-                    faces = insight_app.get(img)
-                    if not faces:
-                        msg = f"🚫 Yuz aniqlanmadi: {full_name}"
+                    # Yuzni qayta ishlash
+                    encoding, landmarks = FaceEncoding.process_face_image(user.face_image.path, insight_app)
+                    if encoding is None:
+                        msg = f"❌ Yuz aniqlanmadi yoki rasm o‘qilmadi: {full_name}"
                         print(msg)
                         logger.warning(msg)
                         encoding_progress_data["current"] += 1
                         continue
 
-                    face = faces[0]
-                    encoding = [float(x) for x in face.embedding]
-
-                    landmarks = {}
-                    if hasattr(face, 'kps') and face.kps is not None:
-                        landmarks = {
-                            f"p{i}": [float(p[0]), float(p[1])]
-                            for i, p in enumerate(face.kps)
-                        }
-
+                    # Encodingni saqlash
                     FaceEncoding.objects.update_or_create(
                         user=user,
                         defaults={
@@ -211,7 +190,7 @@ def create_encodings(request):
                     logger.info(msg)
 
                 except Exception as e:
-                    err_msg = f"❌ Xatolik {user.id} ({user.full_name}): {str(e)}"
+                    err_msg = f"❌ Xatolik {user.id} ({full_name}): {str(e)}"
                     print(err_msg)
                     logger.error(err_msg)
                     traceback.print_exc()
@@ -224,8 +203,8 @@ def create_encodings(request):
             gc.collect()
             time.sleep(0.5)
 
-        print("\n🎉 Barcha encodinglar yakunlandi!")
         logger.info("Barcha encodinglar yakunlandi.")
+        print("\n🎉 Barcha encodinglar yakunlandi!")
         encoding_progress_data["is_processing"] = False
 
         return JsonResponse({
@@ -235,7 +214,7 @@ def create_encodings(request):
         })
 
     except Exception as e:
-        err_msg = f"🚨 Umumiy xatolik: {e}"
+        err_msg = f"🚨 Umumiy xatolik: {str(e)}"
         print(err_msg)
         logger.error(err_msg)
         traceback.print_exc()
@@ -245,5 +224,4 @@ def create_encodings(request):
         })
         return JsonResponse({"status": "error", "message": err_msg})
 
-def encoding_progress(request):
-    return JsonResponse(encoding_progress_data)
+

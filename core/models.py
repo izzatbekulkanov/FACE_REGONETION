@@ -20,13 +20,10 @@ class CustomUser(AbstractUser):
     institute = models.CharField(max_length=255, blank=True, null=True)
     department = models.CharField(max_length=255, blank=True, null=True)
     position = models.CharField(max_length=255, blank=True, null=True)
-
     face_image = models.ImageField(upload_to="faces/", blank=True, null=True)
-
     is_teacher = models.BooleanField(default=False)
     is_student = models.BooleanField(default=False)
     is_admin = models.BooleanField(default=False)
-
     date_joined = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -54,21 +51,23 @@ class FaceEncoding(models.Model):
             if not faces:
                 raise ValueError("Yuz aniqlanmadi.")
 
-            face = faces[0]
+            # Agar bir nechta yuz bo‘lsa, eng katta yuzni tanlaymiz (det_score yoki bbox maydoni bo‘yicha)
+            best_face = max(faces, key=lambda f: f.det_score if hasattr(f, 'det_score') else np.prod(f.bbox[2:] - f.bbox[:2]))
 
-            # Encoding
-            embedding = [float(x) for x in face.embedding]
+            # Embedding
+            embedding = [float(x) for x in best_face.embedding]
 
             # Landmarks
             landmarks = {}
-            if hasattr(face, 'kps') and face.kps is not None:
+            if hasattr(best_face, 'kps') and best_face.kps is not None:
                 landmarks = {
-                    f"p{i}": [float(p[0]), float(p[1])] for i, p in enumerate(face.kps)
+                    f"p{i}": [float(p[0]), float(p[1])] for i, p in enumerate(best_face.kps)
                 }
 
             return embedding, landmarks
 
         except Exception as e:
+            print(f"Yuzni qayta ishlashda xato: {str(e)}")
             traceback.print_exc()
             return None, None
 

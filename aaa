@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# Virtual muhitni faollashtirish (agar kerak bo‘lsa)
+source venv/bin/activate
+
+# GUI skriptini ishga tushirish
+python run_daphne_gui.py
+
+

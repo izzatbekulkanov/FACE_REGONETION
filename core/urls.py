@@ -14,7 +14,6 @@ urlpatterns = [
     # 🔴 Yuz aniqlash sahifalari
     path('', FaceRecognitionLogListView.as_view(), name='index'),  # Loglar sahifasi
     path('latest-logs/', latest_logs, name='latest_logs'),  # Real vaqtda loglarni olish
-
     # 👤 Hodimlar (Staff) CRUD
     path('staff/', staff_list, name='staff_list'),  # Hodimlar ro'yxati
     path('staff/upload/', upload_employees, name='upload_employees'),  # Hodimlarni yuklash
